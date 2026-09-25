@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Messenger</title>
+    <style>
+        /* CSS RESET */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: "Segoe UI", sans-serif; background-color: #17212b; color: white; height: 100vh; overflow: hidden; }
+
+        /* LAYOUT */
+        #app-container { display: none; height: 100vh; width: 100vw; }
+
+        /* SIDEBAR */
+        .sidebar { width: 300px; background: #17212b; display: flex; flex-direction: column; border-right: 1px solid #0e1621; }
+        .sidebar-header { padding: 15px; display: flex; gap: 10px; }
+        .sidebar-header button { flex: 1; padding: 8px; background: #2b5278; color: white; border: none; cursor: pointer; border-radius: 4px; }
+
+        .channel-list { flex: 1; overflow-y: auto; }
+
+        /* IMPROVED CHANNEL ITEM (Clickable Row) */
+        .channel-item {
+            padding: 15px; border-bottom: 1px solid #0e1621; cursor: pointer;
+            display: flex; justify-content: space-between; align-items: center;
+            transition: background 0.2s;
+        }
+        .channel-item:hover { background-color: #202b36; }
+        .channel-item.active { background-color: #2b5278; border-left: 4px solid #5288c1; }
+
+        /* LOGIN SCREEN */
+        #login-screen { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; background: #0e1621; position: absolute; width: 100%; z-index: 999; }
+        .login-box { display: flex; flex-direction: column; gap: 10px; width: 300px; }
+        .login-box input { padding: 12px; background: #17212b; border: 1px solid #2b5278; color: white; border-radius: 4px; }
+        .login-box button { padding: 10px; background: #5288c1; color: white; border: none; cursor: pointer; font-weight: bold; border-radius: 4px; }
+
+        /* CHAT AREA */
+        .chat-area { flex: 1; display: flex; flex-direction: column; background: #0e1621; }
+
+        /* CHAT HEADER (NAME AT TOP) */
+        .chat-header {
+            padding: 0 20px; border-bottom: 1px solid #0e1621; height: 60px;
+            display: flex; align-items: center; justify-content: space-between;
+            background: #17212b;
+        }
+        .chat-header h3 { margin: 0; font-size: 1.2em; color: white; }
+        .chat-header span { color: #888; font-size: 0.9em; }
+
+        .messages-container { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        .msg { max-width: 60%; padding: 10px 15px; border-radius: 10px; position: relative; font-size: 0.9em; }
+        .msg.sent { align-self: flex-end; background: #2b5278; border-bottom-right-radius: 0; }
+        .msg.received { align-self: flex-start; background: #182533; border-bottom-left-radius: 0; }
+        .msg-sender { font-size: 0.75em; color: #72aee6; font-weight: bold; display: block; margin-bottom: 2px; }
+        .msg.sent .msg-sender { display: none; }
+
+        /* INPUT */
+        .input-area { padding: 15px; background: #17212b; display: flex; gap: 10px; }
+        .input-area input { flex: 1; padding: 12px; background: #0e1621; border: none; color: white; border-radius: 20px; outline: none; }
+        .input-area button { width: 50px; border-radius: 50%; border: none; background: #5288c1; color: white; cursor: pointer; }
+
+        /* MODAL */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; z-index: 1000; }
+        .modal { background: #17212b; padding: 20px; width: 300px; border-radius: 8px; display: flex; flex-direction: column; gap: 10px; }
+        .modal input { padding: 10px; background: #0e1621; border: 1px solid #2b5278; color: white; }
+        .modal button { padding: 8px; background: #5288c1; color: white; border: none; cursor: pointer; }
+        .modal button.cancel { background: #cf5555; }
+    </style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+    <h2 style="color: #fff; margin-bottom: 20px;">Messenger</h2>
+    <div class="login-box">
+        <input type="text" id="username" placeholder="Username">
+        <input type="password" id="password" placeholder="Password">
+        <div style="display:flex; gap:10px;">
+            <button onclick="auth('login')">Login</button>
+            <button onclick="auth('register')" style="background:#2b5278">Register</button>
+        </div>
+    </div>
+</div>
+
+<!-- APP -->
+<div id="app-container">
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <button onclick="openModal('create')">New Chat</button>
+            <button onclick="openModal('join')">Join Code</button>
+        </div>
+        <div id="channel-list" class="channel-list"></div>
+        <div style="padding:15px; border-top:1px solid #0e1621;">
+            <button style="width:100%;padding:10px;background:#cf5555;color:white;border:none;border-radius:4px;cursor:pointer;" onclick="location.reload()">Log Out</button>
+        </div>
+    </div>
+
+    <div class="chat-area">
+        <div class="chat-header">
+            <!-- THIS IS WHERE THE NAME GOES -->
+            <h3 id="chat-title">Select a chat</h3>
+            <span id="chat-code"></span>
+        </div>
+        <div id="messages" class="messages-container"></div>
+        <div class="input-area">
+            <input type="text" id="msg-input" placeholder="Type a message..." onkeypress="if(event.key==='Enter') sendMessage()">
+            <button onclick="sendMessage()">➤</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL -->
+<div id="modal-overlay" class="modal-overlay">
+    <div class="modal">
+        <h3 id="modal-title">Action</h3>
+        <input type="text" id="modal-input">
+        <button onclick="submitModal()">Submit</button>
+        <button class="cancel" onclick="closeModal()">Cancel</button>
+    </div>
+</div>
+
+<script>
+    let currentUser = null;
+    let currentChannel = null;
+    let ws = null;
+    let modalAction = "";
+
+    async function auth(type) {
+        const u = document.getElementById('username').value;
+        const p = document.getElementById('password').value;
+        if(!u || !p) return alert("Enter creds");
+
+        try {
+            const res = await fetch(`/api/auth/${type}`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ username: u, password: p })
+            });
+            if(res.ok) {
+                currentUser = (await res.json()).username;
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('app-container').style.display = 'flex';
+                fetchChannels();
+                connectWebSocket();
+            } else { alert("Auth failed"); }
+        } catch(e) { console.error(e); alert("Server error"); }
+    }
+
+    async function fetchChannels() {
+        if (!currentUser) return;
+        // Send the current user to the backend
+        const res = await fetch(`/api/channels?user=${currentUser}`);
+        const channels = await res.json();
+
+        // ... rest of the render logic stays the same ...
+        const list = document.getElementById('channel-list');
+        list.innerHTML = '';
+        channels.forEach(ch => {
+            // ... (render logic) ...
+            const isActive = currentChannel && currentChannel.id === ch.id;
+            const div = document.createElement('div');
+            div.className = `channel-item ${isActive ? 'active' : ''}`;
+            div.onclick = () => enterChannel(ch.id);
+            div.innerHTML = `
+            <span>${ch.name}</span>
+            <button style="background:none;border:none;color:#cf5555;cursor:pointer;font-size:1.2em;"
+                onclick="event.stopPropagation(); deleteChannel('${ch.id}')">&times;</button>
+        `;
+            list.appendChild(div);
+        });
+    }
+
+    async function enterChannel(id) {
+        // This fetch will only work if you updated ChannelController.java
+        const res = await fetch(`/api/channels/${id}`);
+        if(!res.ok) return alert("Error selecting chat. Did you update Java?");
+
+        currentChannel = await res.json();
+
+        // UPDATE TITLE AT TOP
+        document.getElementById('chat-title').innerText = currentChannel.name;
+        document.getElementById('chat-code').innerText = "Code: " + currentChannel.inviteCode;
+
+        fetchChannels(); // Highlight row
+
+        const box = document.getElementById('messages');
+        box.innerHTML = '';
+        currentChannel.messages.forEach(renderMessage);
+        box.scrollTop = box.scrollHeight;
+
+        if(ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "JOIN", channelId: id }));
+        }
+    }
+
+    async function deleteChannel(id) {
+        if(!confirm("Delete?")) return;
+        await fetch(`/api/channels/${id}`, { method: 'DELETE' });
+        if(currentChannel && currentChannel.id === id) {
+            currentChannel = null;
+            document.getElementById('messages').innerHTML = '';
+            document.getElementById('chat-title').innerText = "Select a chat";
+            document.getElementById('chat-code').innerText = "";
+        }
+        fetchChannels();
+    }
+
+    function connectWebSocket() {
+        ws = new WebSocket(`ws://${window.location.host}/chat`);
+        ws.onopen = () => { if(currentChannel) ws.send(JSON.stringify({ type: "JOIN", channelId: currentChannel.id })); };
+        ws.onmessage = (e) => {
+            const msg = JSON.parse(e.data);
+            if(currentChannel && (msg.channelId === currentChannel.id || !msg.channelId)) {
+                renderMessage(msg);
+                const box = document.getElementById('messages');
+                box.scrollTop = box.scrollHeight;
+            }
+        };
+    }
+
+    function sendMessage() {
+        if(!currentChannel) return;
+        const input = document.getElementById('msg-input');
+        const txt = input.value;
+        if(!txt.trim()) return;
+
+        ws.send(JSON.stringify({ type: "SEND", channelId: currentChannel.id, sender: currentUser, content: txt }));
+        input.value = '';
+    }
+
+    function renderMessage(msg) {
+        const div = document.createElement('div');
+        const isMe = msg.sender === currentUser;
+        div.className = `msg ${isMe ? 'sent' : 'received'}`;
+        div.innerHTML = `<span class="msg-sender">${isMe ? '' : msg.sender}</span>${msg.content}`;
+        document.getElementById('messages').appendChild(div);
+    }
+
+    function openModal(a) { modalAction = a; document.getElementById('modal-overlay').style.display = 'flex'; }
+    function closeModal() { document.getElementById('modal-overlay').style.display = 'none'; }
+    async function submitModal() {
+        const val = document.getElementById('modal-input').value;
+        const url = modalAction === 'create' ? '/api/channels/create' : '/api/channels/join';
+
+        // UPDATED: 'join' now sends 'inviteCode' AND 'username'
+        const body = modalAction === 'create'
+            ? { name: val, ownerId: currentUser }
+            : { inviteCode: val, username: currentUser };
+
+        await fetch(url, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+        closeModal();
+        fetchChannels();
+    }
+</script>
+</body>
+</html>
